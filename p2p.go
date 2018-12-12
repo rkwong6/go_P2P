@@ -32,7 +32,7 @@ func main() {
 		"[5] Edit Error/Failure Rate (%)\n"
 
 	for {
-		fmt.Println("\n--------------------------------\n\nPeer-to-peer Simulation in Go")
+		fmt.Println("--------------------------------\n\nPeer-to-peer Simulation in Go")
 
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Println("Usage:")
@@ -40,7 +40,6 @@ func main() {
 		fmt.Print("Enter command: ")
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimSuffix(text, "\n")
-		fmt.Println("Command Entered:", text)
 
 		switch {
 		case text == "1":
@@ -49,7 +48,6 @@ func main() {
 		case text == "2":
 			check_params()
 		case text == "3":
-			fmt.Println("Editing Number of Nodes...")
 			fmt.Print("Please specify # of Nodes: ")
 			numNodesStr, _ := reader.ReadString('\n')
 			numNodesStr = strings.TrimSuffix(numNodesStr, "\n")
@@ -62,7 +60,6 @@ func main() {
 			numNodes = numNodesVal
 			fmt.Println("# of Nodes successfully updated")
 		case text == "4":
-			fmt.Println("Editing download rate...")
 			fmt.Print("Please specify download rate: ")
 			dlRateStr, _ := reader.ReadString('\n')
 			dlRateStr = strings.TrimSuffix(dlRateStr, "\n")
@@ -75,7 +72,6 @@ func main() {
 			dlRate = dlRateVal
 			fmt.Println("download rate successfully updated")
 		case text == "5":
-			fmt.Println("Editing error/failure rate...")
 			fmt.Print("Please specify error/failure rate: ")
 			errRateStr, _ := reader.ReadString('\n')
 			errRateStr = strings.TrimSuffix(errRateStr, "\n")
@@ -101,5 +97,9 @@ func run_simulation() {
 
 /* Prints the current parameters which are set to be used in execution of simulation */
 func check_params() {
-
+	fmt.Println("---------------------------------")
+	fmt.Println("Current Parameters For Simulation")
+	fmt.Print("# of Nodes:    ", numNodes, "\n")
+	fmt.Print("Download Rate: ", dlRate, "Mb/s\n")
+	fmt.Print("Error Rate:    ", errRate, "%\n")
 }
