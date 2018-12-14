@@ -21,6 +21,12 @@ type node struct {
 	isDown      bool // Node is no longer a seed if true; if down
 }
 
+type fdata struct {
+	data []byte
+	runtime int
+	nodeID int
+}
+
 /* Global variables */
 var numNodes int = 10;
 var dlRate int = 10;
@@ -115,6 +121,11 @@ func run_simulation(data []byte, nodeList []node) {
 	split := len(data)/len(nodeList);
 	remainder := len(data) % len(nodeList);
 	var nodeData []byte;
+
+	nodeChan := make(chan fdata, len(nodeList));
+	allData := make([]fdata, len(nodeList));
+
+
 	// bar := pb.StartNew(len(nodeList))
 	for i := range nodeList {
 		// bar.Increment()
@@ -123,17 +134,22 @@ func run_simulation(data []byte, nodeList []node) {
 		} else {
 			nodeData = data[0+i*split:split+i*split + remainder];
 		}
-		// fmt.Println("Node: ", i, " Data: ", nodeData, " Amount: ", len(nodeData));
-		uploadFile(nodeList[i], nodeData);
+		go uploadFile(nodeList[i], nodeData, nodeChan);
 		// time.Sleep(time.Millisecond)
 		//INSERT SIMULATION HERE
+	}
 
+	for i := range allData {
+		allData[i] = <- nodeChan;
+	}
+	for i := range allData {
+		fmt.Println("Time to finish uploading", len(allData[i].data) , "bytes on node ", allData[i].nodeID ," : ", allData[i].runtime);
 	}
 	// bar.FinishPrint("The End!")
 	// fmt.Println(split, "    ", remainder);
 }
 
-func uploadFile(node_n node , nodeData []byte ) {
+func uploadFile(node_n node, nodeData []byte, nodeChan chan<- fdata ) {
 	var lagTime = rand.Intn(maxErrRate);												//amount of intitial waiting prior to beginning upload
 	var uploadSpeed = rand.Intn(node_n.uploadSpd/2) + rand.Intn(node_n.uploadSpd/2);	//buffer for how much data to upload per local time unit
 	var local_time = 0;
@@ -160,8 +176,10 @@ func uploadFile(node_n node , nodeData []byte ) {
 
 		time.Sleep(time.Millisecond);
 	}
+	var myData = fdata{nodeData, local_time, node_n.nodeID};
 
-	fmt.Println("Time to finish uploading", len(nodeData) , "bytes on node ", node_n.nodeID ," : ", local_time);
+	nodeChan <- myData;
+
 }
 
 func generateNodes(nodeList []node) {
