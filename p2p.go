@@ -43,7 +43,7 @@ func main() {
 	usage := "[1] Run Simulation\n" +
 		"[2] Check parameters\n" +
 		"[3] Edit # of Nodes\n" +
-		"[4] Edit Download Rate      (Mbps)\n" +
+		"[4] Edit Upload Rate      (Mbps)\n" +
 		"[5] Edit Error/Failure Rate (%)\n" +
 		"[6] Edit Seeder/Leecher Ratio (0.01 - 1)\n"
 
