@@ -7,9 +7,11 @@ import (
 	"strconv"
 	"strings"
 	_"gopkg.in/cheggaaa/pb.v1"
+	"sort"
 	"time"
 	"io/ioutil"
 	"math/rand"
+	"sync"
 )
 
 // Each node has a download speed, upload speed, standby status, and down status
@@ -29,18 +31,21 @@ type fdata struct {
 var numNodes int = 10;
 var dlRate int = 10;
 var maxErrRate int = 10;
+var slRatio float64 = 1;
+
+var wg = sync.WaitGroup{}
 
 func main() {
 	var nodeList []node;
 	rand.Seed(time.Now().UTC().UnixNano());
-
 
 	// Define usage statement
 	usage := "[1] Run Simulation\n" +
 		"[2] Check parameters\n" +
 		"[3] Edit # of Nodes\n" +
 		"[4] Edit Download Rate      (Mbps)\n" +
-		"[5] Edit Error/Failure Rate (%)\n"
+		"[5] Edit Error/Failure Rate (%)\n" +
+		"[6] Edit Seeder/Leecher Ratio (0.01 - 1)\n"
 
 	for {
 		fmt.Println("--------------------------------\n\nPeer-to-peer Simulation in Go")
@@ -74,7 +79,7 @@ func main() {
 			if err != nil {
 				// handle error
 				fmt.Println(err)
-				os.Exit(2)
+				continue;
 			}
 			numNodes = numNodesVal
 			nodeList = make([]node, numNodes);
@@ -88,7 +93,7 @@ func main() {
 			if err != nil {
 				// handle error
 				fmt.Println(err)
-				os.Exit(2)
+				continue
 			}
 			dlRate = dlRateVal
 			fmt.Println("download rate successfully updated")
@@ -100,10 +105,21 @@ func main() {
 			if err != nil {
 				// handle error
 				fmt.Println(err)
-				os.Exit(2)
+				continue;
 			}
 			maxErrRate = maxErrRateVal
-			fmt.Println("Erorr/failure rate successfully updated")
+			fmt.Println("Error/failure rate successfully updated")
+		case text == "6":
+			fmt.Print("Please specify the seeder/leecher ratio (0.01 - 1): ");
+			slRatioStr, _ := reader.ReadString('\n');
+			slRatioStr = strings.TrimSuffix(slRatioStr, "\n");
+			slRatioVal, err := strconv.ParseFloat(slRatioStr, 10);
+			if err != nil {
+				fmt.Println(err);
+				continue;
+			}
+			slRatio = slRatioVal;
+			fmt.Println("Seeder/Leecher ratio successfully updated");
 		default:
 			fmt.Println("Error: Invalid input, please refer to usage statement...")
 		}
@@ -124,11 +140,12 @@ func run_simulation(data []byte, nodeList []node) {
 	nodeChan := make(chan fdata, len(nodeList));
 	allData := make([]fdata, len(nodeList));
 
-
 	// bar := pb.StartNew(len(nodeList))
+	
 	for i := range nodeList {
+		wg.Add(1);
 		// bar.Increment()
-		if(i != 0) {
+		if (i != 0) {
 			nodeData = data[0+i*split:split+i*split];
 		} else {
 			nodeData = data[0+i*split:split+i*split + remainder];
@@ -137,25 +154,36 @@ func run_simulation(data []byte, nodeList []node) {
 		// time.Sleep(time.Millisecond)
 		//INSERT SIMULATION HERE
 	}
+	wg.Wait();
 
 	for i := range allData {
 		allData[i] = <- nodeChan;
 	}
 
-	f, err := os.Create("out/outfile.csv");
+	f, err := os.Create("out/stats.csv");
 	if err != nil {
-		fmt.Println("Error creating outfile: \n", err);
+		fmt.Println("Error creating stats csv: \n", err);
 	}
-	// fmt.Println(f);
-	// return;
-	f.WriteString("len(data), nodeID, runtime, downTime, uploadSpeed\n");
+
+	output_f, err := os.Create("out/output.txt");
+
+	if err != nil {
+		fmt.Println("Error creating output file: \n", err);
+	}
+
+	sort.Slice (allData[:], func(i, j int) bool {
+		return allData[i].nodeID < allData[j].nodeID;
+	})
+
+	// fmt.Println(allData);
+
+	f.WriteString("len(data), nodeID, runtime, downTime, uploadSpeed    " + strconv.FormatFloat(slRatio, 'f', -1, 64) + "\n");
 	for i := range allData {
 		s := strconv.Itoa(len(allData[i].data)) + ", "+ strconv.Itoa(allData[i].nodeID )+ ", " + strconv.Itoa(allData[i].runtime) + ", " + strconv.Itoa(nodeList[allData[i].nodeID].downTime) + ", " + strconv.Itoa(nodeList[allData[i].nodeID].uploadSpd) + "\n";
 
 		fmt.Print(s);
-		// s := string(allData[i].runtime);
-		// fmt.Println(s);
 		f.WriteString(s);
+		output_f.WriteString(string(allData[i].data));
 	}
 	// bar.FinishPrint("The End!")
 	// fmt.Println(split, "    ", remainder);
@@ -164,7 +192,7 @@ func run_simulation(data []byte, nodeList []node) {
 func uploadFile(nodeList []node, n int, nodeData []byte, nodeChan chan<- fdata ) {
 	var node_n = nodeList[n];
 	var lagTime = rand.Intn(maxErrRate);												//amount of intitial waiting prior to beginning upload
-	var uploadSpeed = rand.Intn(node_n.uploadSpd/2) + rand.Intn(node_n.uploadSpd/2);	//buffer for how much data to upload per local time unit
+	var uploadSpeed = int(float64((rand.Intn(node_n.uploadSpd/2) + rand.Intn(node_n.uploadSpd/2))) * slRatio);	//buffer for how much data to upload per local time unit
 	var local_time = 0;
 	nodeList[n].uploadSpd = uploadSpeed;
 	nodeList[n].downTime = lagTime;
@@ -195,7 +223,7 @@ func uploadFile(nodeList []node, n int, nodeData []byte, nodeChan chan<- fdata )
 	var myData = fdata{nodeData, local_time, node_n.nodeID};
 
 	nodeChan <- myData;
-
+	wg.Done();
 }
 
 func generateNodes(nodeList []node) {
