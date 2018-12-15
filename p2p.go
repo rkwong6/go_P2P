@@ -15,10 +15,8 @@ import (
 // Each node has a download speed, upload speed, standby status, and down status
 type node struct {
 	nodeID      int  // unique identifier
-	// downloadSpd int  // of file from seeded nodes (in Mb/sec)
-	uploadSpd   int  // of file to end user (in Mb/sec)
-	isStandby   bool // (as a seed) Node is either on standby (true) or in use (false)
-	isDown      bool // Node is no longer a seed if true; if down
+	uploadSpd   int  // random number generated from dlRate
+	downTime int 	 // random number generated from maxErrRate
 }
 
 type fdata struct {
@@ -62,6 +60,7 @@ func main() {
 			data, err := ioutil.ReadFile(text);
 			if err != nil {
 				fmt.Println("Invalid filepath provided");
+				continue;
 			}
 			fmt.Println("Running simulation...")
 			run_simulation(data, nodeList)
@@ -134,7 +133,7 @@ func run_simulation(data []byte, nodeList []node) {
 		} else {
 			nodeData = data[0+i*split:split+i*split + remainder];
 		}
-		go uploadFile(nodeList[i], nodeData, nodeChan);
+		go uploadFile(nodeList, i, nodeData, nodeChan);
 		// time.Sleep(time.Millisecond)
 		//INSERT SIMULATION HERE
 	}
@@ -142,17 +141,33 @@ func run_simulation(data []byte, nodeList []node) {
 	for i := range allData {
 		allData[i] = <- nodeChan;
 	}
+
+	f, err := os.Create("out/outfile.csv");
+	if err != nil {
+		fmt.Println("Error creating outfile: \n", err);
+	}
+	// fmt.Println(f);
+	// return;
+	f.WriteString("len(data), nodeID, runtime, downTime, uploadSpeed\n");
 	for i := range allData {
-		fmt.Println("Time to finish uploading", len(allData[i].data) , "bytes on node ", allData[i].nodeID ," : ", allData[i].runtime);
+		s := strconv.Itoa(len(allData[i].data)) + ", "+ strconv.Itoa(allData[i].nodeID )+ ", " + strconv.Itoa(allData[i].runtime) + ", " + strconv.Itoa(nodeList[allData[i].nodeID].downTime) + ", " + strconv.Itoa(nodeList[allData[i].nodeID].uploadSpd) + "\n";
+
+		fmt.Print(s);
+		// s := string(allData[i].runtime);
+		// fmt.Println(s);
+		f.WriteString(s);
 	}
 	// bar.FinishPrint("The End!")
 	// fmt.Println(split, "    ", remainder);
 }
 
-func uploadFile(node_n node, nodeData []byte, nodeChan chan<- fdata ) {
+func uploadFile(nodeList []node, n int, nodeData []byte, nodeChan chan<- fdata ) {
+	var node_n = nodeList[n];
 	var lagTime = rand.Intn(maxErrRate);												//amount of intitial waiting prior to beginning upload
 	var uploadSpeed = rand.Intn(node_n.uploadSpd/2) + rand.Intn(node_n.uploadSpd/2);	//buffer for how much data to upload per local time unit
 	var local_time = 0;
+	nodeList[n].uploadSpd = uploadSpeed;
+	nodeList[n].downTime = lagTime;
 
 	var dataUploaded = 0;
 	var lower_offset = 0;
@@ -165,6 +180,7 @@ func uploadFile(node_n node, nodeData []byte, nodeChan chan<- fdata ) {
 	}
 
 	for dataUploaded <= len(nodeData){
+		// fmt.Println(dataUploaded, len(nodeData));
 		if local_time > lagTime {
 			for i := lower_offset; i < upper_offset; i++ {
 				dataUploaded += 1;
@@ -174,7 +190,7 @@ func uploadFile(node_n node, nodeData []byte, nodeChan chan<- fdata ) {
 		} 
 		local_time += 1;
 
-		time.Sleep(time.Millisecond);
+		// time.Sleep(time.Millisecond);
 	}
 	var myData = fdata{nodeData, local_time, node_n.nodeID};
 
@@ -184,7 +200,7 @@ func uploadFile(node_n node, nodeData []byte, nodeChan chan<- fdata ) {
 
 func generateNodes(nodeList []node) {
 	for i := 0; i < numNodes; i++ {
-		nodeList[i] = node{i, dlRate, false, false};
+		nodeList[i] = node{i, dlRate, maxErrRate};
 	}
 }
 
